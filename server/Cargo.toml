@@ -14,6 +14,7 @@ actix-web = { version = "4", features = ["openssl"]}
 actix-web-actors = "4.1"
 awc = "3.0.0-beta.21"
 uuid = { version = "1.0.0", features = ["v4"]}
+actix-cors = "0.6.1"
 
 env_logger = "0.9"
 futures-util = { version = "0.3.7", default-features = false, features = ["std", "sink"] }
@@ -24,3 +25,6 @@ tokio-stream = "0.1.8"
 lazy_static = "1.4.0"
 
 openssl = "0.10"
+
+diesel = { version = "1.4.4", features = ["sqlite"] }
+dotenv = "0.15.0"

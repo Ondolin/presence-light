@@ -38,3 +38,6 @@ Cargo.lock
 /src/cert.crt
 /src/cert.csr
 /src/cert.key
+
+.env
+*.db
