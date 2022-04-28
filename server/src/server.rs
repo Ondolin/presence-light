@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use actix::prelude::*;
 use actix_web_actors::ws;
 
-use crate::state::{State, RECIEVER_ADDRS, CURRENT_STATE};
+use crate::state::{State, CURRENT_STATE, RECIEVER_ADDRS};
 
 use uuid::Uuid;
 
@@ -15,14 +15,14 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
 
 pub struct MyWebSocket {
     hb: Instant,
-    id: Uuid
+    id: Uuid,
 }
 
 impl MyWebSocket {
     pub fn new() -> Self {
-        Self { 
+        Self {
             hb: Instant::now(),
-            id: Uuid::new_v4()
+            id: Uuid::new_v4(),
         }
     }
 
@@ -44,14 +44,12 @@ impl MyWebSocket {
             ctx.ping(b"");
         });
     }
-
 }
 
 impl Actor for MyWebSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-
         log::info!("Client connected.");
 
         self.hb(ctx);
@@ -59,9 +57,8 @@ impl Actor for MyWebSocket {
         // send the current state
         {
             let state = CURRENT_STATE.lock().unwrap();
-        
-            ctx.text(state.to_str());
 
+            ctx.text(state.to_str());
         }
 
         // add the commection to the recievers list
@@ -69,44 +66,36 @@ impl Actor for MyWebSocket {
             let mut current = RECIEVER_ADDRS.lock().unwrap();
             current.insert(self.id, ctx.address());
         }
-
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-       
         // remove the client from reciever list when disconnecting
         let mut map = RECIEVER_ADDRS.lock().unwrap();
 
         match map.remove(&self.id) {
             Some(_) => log::info!("Client disconnected."),
-            None => log::error!("Could not remove client form reciever list!")
+            None => log::error!("Could not remove client form reciever list!"),
         }
-
     }
-    
 }
-
 
 impl Message for State {
     type Result = Result<(), ()>;
 }
 
 impl Handler<State> for MyWebSocket {
-
     type Result = Result<(), ()>;
 
     fn handle(&mut self, msg: State, ctx: &mut Self::Context) -> Self::Result {
-
         ctx.text(msg.to_str());
 
-        Ok(()) 
+        Ok(())
     }
 }
 
 /// Handler for `ws::Message`
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-
         match msg {
             Ok(ws::Message::Ping(msg)) => {
                 self.hb = Instant::now();

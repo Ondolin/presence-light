@@ -1,17 +1,18 @@
 #[macro_use]
 extern crate lazy_static;
 
-mod state;
 mod server;
+mod state;
 
 use self::server::MyWebSocket;
-use self::state::{RECIEVER_ADDRS, State, CURRENT_STATE};
+use self::state::{State, CURRENT_STATE, RECIEVER_ADDRS};
 
-use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, post, Responder};
+use actix_web::{
+    middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
+};
 use actix_web_actors::ws;
 
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-
 
 async fn echo_ws(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
     ws::start(MyWebSocket::new(), &req, stream)
@@ -22,7 +23,6 @@ async fn set_state(req_body: String) -> impl Responder {
     let lock = RECIEVER_ADDRS.lock().unwrap();
 
     if let Ok(state) = State::from_str(req_body) {
-
         {
             let mut current = CURRENT_STATE.lock().unwrap();
 
@@ -30,20 +30,16 @@ async fn set_state(req_body: String) -> impl Responder {
         }
 
         for (_uuid, addr) in &mut lock.iter() {
-    
             match addr.try_send(state) {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => log::error!("Could not send message. Got error: {}", e),
             }
-
         }
 
         HttpResponse::Ok()
-
     } else {
         HttpResponse::NotFound()
     }
-     
 }
 
 #[actix_web::main]
@@ -51,7 +47,6 @@ async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
     log::info!("starting HTTP server at http://localhost:8080");
-
 
     let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
     builder
