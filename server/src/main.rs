@@ -1,45 +1,72 @@
 #[macro_use]
 extern crate lazy_static;
 
-use warp::{Filter, Rejection};
-
-mod handlers;
-mod ws;
 mod state;
+mod server;
 
-#[tokio::main]
-async fn main() {
+use self::server::MyWebSocket;
+use self::state::{RECIEVER_ADDRS, State, CURRENT_STATE};
 
-    println!("Configuring websocket route");
-    let ws_route = warp::path("ws")
-        .and(warp::ws())
-        .map(|ws: warp::ws::Ws| {
-            ws.on_upgrade(move |socket| ws::client_connection(socket))
-        });
+use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer, post, Responder};
+use actix_web_actors::ws;
 
-    let change_state = warp::post()
-        .and(warp::path("current"))
-        .and(warp::body::bytes())
-        .and_then(handlers::post_current);
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 
 
-    let incoming_log = warp::log::custom(|info| {
-        eprintln!(
-            "{} {} {} {:?}",
-            info.method(),
-            info.path(),
-            info.status(),
-            info.elapsed(),
-        );
-    });
+async fn echo_ws(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+    ws::start(MyWebSocket::new(), &req, stream)
+}
 
-    let routes = change_state.or(ws_route).with(warp::cors().allow_any_origin()).with(incoming_log);
+#[post("/current")]
+async fn set_state(req_body: String) -> impl Responder {
+    let lock = RECIEVER_ADDRS.lock().unwrap();
+
+    if let Ok(state) = State::from_str(req_body) {
+
+        {
+            let mut current = CURRENT_STATE.lock().unwrap();
+
+            *current = state;
+        }
+
+        for (_uuid, addr) in &mut lock.iter() {
+    
+            match addr.try_send(state) {
+                Ok(_) => {},
+                Err(e) => log::error!("Could not send message. Got error: {}", e),
+            }
+
+        }
+
+        HttpResponse::Ok()
+
+    } else {
+        HttpResponse::NotFound()
+    }
+     
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+    log::info!("starting HTTP server at http://localhost:8080");
 
 
-    println!("Starting server");
-    warp::serve(routes)
-        .tls()
-        .cert_path("./cert.crt")
-        .key_path("./cert.key")
-        .run(([0, 0, 0, 0], 8000)).await;
+    let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+    builder
+        .set_private_key_file("cert.key", SslFiletype::PEM)
+        .unwrap();
+    builder.set_certificate_chain_file("cert.crt").unwrap();
+
+    HttpServer::new(|| {
+        App::new()
+            .service(web::resource("/ws").route(web::get().to(echo_ws)))
+            .service(set_state)
+            // enable logger
+            .wrap(middleware::Logger::default())
+    })
+    .bind_openssl("0.0.0.0:8080", builder)?
+    .run()
+    .await
 }

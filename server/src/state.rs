@@ -1,6 +1,8 @@
-use std::sync::{Arc, Mutex};
+#![allow(non_camel_case_types)]
 
-use pub_sub::PubSub;
+use std::{sync:: Mutex, collections::HashMap};
+
+use crate::server::MyWebSocket;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
@@ -19,33 +21,22 @@ impl State {
             State::OFF => "OFF"
         }
     }
-}
 
-impl TryFrom<warp::hyper::body::Bytes> for State {
-    
-    type Error = ();
-    
-    fn try_from(value: warp::hyper::body::Bytes) -> Result<Self, Self::Error> {
-
-        println!("{:?}, {}", value, String::from_utf8(value.to_ascii_uppercase()).unwrap().as_str() );
-
-        println!("{:?}", value == "BUSY");
-
-        match String::from_utf8(value.to_ascii_uppercase()).unwrap().as_str() {
-             "BUSY" => Ok(State::BUSY),
-             "OK_FOR_INTERRUPTIONS" => Ok(State::OK_FOR_INTERRUPTIONS),
-             "FREE" => Ok(State::FREE),
-             "OFF" => Ok(State::OFF),
-             _ => Err(())
-         }
-        
-        
+    pub fn from_str(str: String) -> Result<State, ()> {
+        match str.as_str() {
+            "BUSY" => Ok(State::BUSY),
+            "OK_FOR_INTERRUPTIONS" => Ok(State::OK_FOR_INTERRUPTIONS),
+            "FREE" => Ok(State::FREE),
+            "OFF" => Ok(State::OFF),
+            _ => Err(())
+        }
     }
 }
 
+
 lazy_static! {
-    pub static ref CURRENT_STATE: Arc<Mutex<State>> = Arc::new(Mutex::new(State::OFF));
-    pub static ref CHANNEL: PubSub<State> = PubSub::new();
+    pub static ref CURRENT_STATE: Mutex<State> = Mutex::new(State::OFF);
+    pub static ref RECIEVER_ADDRS: Mutex<HashMap<uuid::Uuid, actix::Addr<MyWebSocket>>> = Mutex::new(HashMap::new());
 }
 
 
