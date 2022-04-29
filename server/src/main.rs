@@ -55,16 +55,24 @@ async fn set_state(
     let lock = RECIEVER_ADDRS.lock().unwrap();
 
     if let Ok(state) = State::from_str(req_body) {
-        {
-            let mut current = CURRENT_STATE.lock().unwrap();
 
-            *current = state;
-        }
-
+        // log the recieved message in the db
         {
             let db_lock = db_connection.lock().unwrap();
 
             db::insert_state_log(&db_lock, state);
+        }
+
+        {
+            let mut current = CURRENT_STATE.lock().unwrap();
+
+            // do not notify anyone if the state did not change
+            if *current == state {
+                return HttpResponse::Ok();
+            }
+
+            *current = state;
+
         }
 
         for (_uuid, addr) in &mut lock.iter() {
