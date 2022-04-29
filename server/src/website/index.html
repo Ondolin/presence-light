@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Anwesenheits Ampel</title>
+    <script src="vue.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="modern-normalize.min.css">
+    <style>
+        body {
+            padding: 2rem;
+            background-image: linear-gradient(to right top, #111827, #111f3e, #142655, #1f2b6b, #312e81);
+            color: #F9FAFB;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+        }
+
+        #app {
+            max-width: 40rem;
+            margin: 0 auto;
+        }
+
+        @media screen and (min-width: 600px) {
+            #app {
+                width: 40rem;
+            }
+
+            #container {
+                display: flex;
+            }
+
+            #button {
+                height: 3rem;
+            }
+        }
+
+        @media screen and (max-width: 600px) {
+            #button {
+                display: inline-block;
+                margin-top: 0.5rem;
+            }
+        }
+
+        #title {
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        #status {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-top: 0;
+        }
+
+        #canvas {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 500px;
+            max-width: 100%;
+            aspect-ratio: 1;
+            height: auto;
+            z-index: -1;
+        }
+
+        #dropdown {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid #F9FAFB;
+            font-weight: 700;
+            letter-spacing: 2px;
+            margin-right: 0.5rem;
+        }
+
+        #button {
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            background-color: #FCA5A5;
+            border: 0;
+        }
+
+        #button:active {
+            background-color: #F98E8E;
+        }
+
+        #loading {
+            display: inline-block;
+            margin-top: 1rem;
+            width: 2.5rem;
+            height: 2.5rem;
+            border: 3px solid rgba(255, 255, 255, .3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            -webkit-animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                -webkit-transform: rotate(360deg);
+            }
+        }
+
+        @-webkit-keyframes spin {
+            to {
+                -webkit-transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <p id="title">Anwesenheits Ampel</h1>
+        <p id="status">Aktueller Status: <br>
+            <span v-if="state" style="user-select: text;">{{ beautifulState }}</span>
+            <span v-else id="loading"></span>
+        </p>
+        <canvas ref="canvas" id="canvas" width="1000" height="1000"></canvas>
+        <div id="container" v-if="key">
+            <!-- dropdown with available status -->
+            <select v-model="newState" id="dropdown">
+                <option value="BUSY">BUSY</option>
+                <option value="OK_FOR_INTERRUPTIONS">OK_FOR_INTERRUPTIONS</option>
+                <option value="FREE">FREE</option>
+                <option value="OFF">OFF</option>
+            </select>
+            <button id="button" @click="changeState">
+                <span v-if="!setting">Ändern</span>
+                <span v-else>Absenden...</span>
+            </button>
+        </div>
+    </div>
+    <script>
+        const params = new Proxy(new URLSearchParams(window.location.search), {
+            get: (searchParams, prop) => searchParams.get(prop),
+        });
+
+        const colors = {
+            "BUSY": "#ff252f",
+            "OK_FOR_INTERRUPTIONS": "#ffa824",
+            "FREE": "#009b83",
+            "OFF": "#F9FAFB"
+        };
+
+        Vue.createApp({
+            data() {
+                return {
+                    state: null,
+                    newState: 'BUSY',
+                    setting: false,
+                    key: params.token,
+                    socket: new WebSocket("wss://presence.erichier.tech/live")
+                }
+            }, created() {
+                this.socket.onmessage = (event) => {
+                    this.state = event.data
+                }
+                this.socket.onerror = console.error;
+            }, watch: {
+                state(state) {
+                    var ctx = this.$refs.canvas.getContext('2d');
+
+                    ctx.strokeStyle = colors[state];
+                    ctx.lineWidth = 100;
+
+                    ctx.beginPath();
+                    ctx.arc(1000, 0, 600, 0.5 * Math.PI, Math.PI);
+                    ctx.stroke();
+
+                }
+            }, computed: {
+                beautifulState() {
+                    switch (this.state) {
+                        case 'BUSY':
+                            return 'Beschäftigt';
+                        case 'OK_FOR_INTERRUPTIONS':
+                            return 'Unterbrechungen möglich';
+                        case 'FREE':
+                            return 'Unbeschäftigt';
+                        case 'OFF':
+                            return "Undefiniert";
+                    }
+                }
+            },
+            methods: {
+                async changeState() {
+                    this.setting = true;
+                    try {
+                        await fetch('https://presence.erichier.tech/current', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': 'Bearer ' + this.key
+                            },
+                            body: this.newState
+                        });
+                    } catch (e) {
+                        alert("Es gab ein Fehler bei der Änderung. Versuchen Sie es noch einmal.");
+                        console.error(e);
+                    }
+                    this.setting = false;
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+
+</html>
