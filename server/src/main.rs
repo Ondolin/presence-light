@@ -13,16 +13,11 @@ mod db_schema;
 
 use std::sync::Mutex;
 
-use actix_web::dev::ServiceRequest;
 use dotenv::dotenv;
 use std::env;
 
 use actix_web::dev::Service;
-use actix_web::dev::ServiceResponse;
-use actix_web::http::StatusCode;
 use diesel::prelude::*;
-
-use actix_web::dev::Response;
 
 use self::server::MyWebSocket;
 use self::state::{State, CURRENT_STATE, RECIEVER_ADDRS};
