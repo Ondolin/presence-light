@@ -8,6 +8,8 @@ extern crate dotenv;
 mod server;
 mod state;
 
+mod onesignal;
+
 mod db;
 mod db_schema;
 
@@ -19,6 +21,7 @@ use std::env;
 use actix_web::dev::Service;
 use diesel::prelude::*;
 
+use self::onesignal::notify_onesignal;
 use self::server::MyWebSocket;
 use self::state::{State, CURRENT_STATE, RECIEVER_ADDRS};
 
@@ -55,7 +58,6 @@ async fn set_state(
     let lock = RECIEVER_ADDRS.lock().unwrap();
 
     if let Ok(state) = State::from_str(req_body) {
-
         // log the recieved message in the db
         {
             let db_lock = db_connection.lock().unwrap();
@@ -72,8 +74,9 @@ async fn set_state(
             }
 
             *current = state;
-
         }
+
+        notify_onesignal(state).await;
 
         for (_uuid, addr) in &mut lock.iter() {
             match addr.try_send(state) {
