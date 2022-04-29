@@ -3,7 +3,6 @@ use diesel::sqlite::SqliteConnection;
 
 use diesel::Insertable;
 
-use dotenv::dotenv;
 use std::env;
 
 use crate::db_schema::{self, states_log};
