@@ -22,11 +22,11 @@ use diesel::prelude::*;
 use self::server::MyWebSocket;
 use self::state::{State, CURRENT_STATE, RECIEVER_ADDRS};
 
+use actix_cors::Cors;
 use actix_web::{
-    middleware, post, get, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
+    get, middleware, post, web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder,
 };
 use actix_web_actors::ws;
-use actix_cors::Cors;
 
 use actix_web::http::Method;
 
@@ -40,7 +40,6 @@ async fn echo_ws(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse,
 
 #[get("/current")]
 async fn get_current_status() -> impl Responder {
-
     let current = CURRENT_STATE.lock().unwrap();
 
     let state = current.to_str().to_string();
@@ -49,7 +48,10 @@ async fn get_current_status() -> impl Responder {
 }
 
 #[post("/current")]
-async fn set_state(db_connection: web::Data<Mutex<SqliteConnection>>, req_body: String) -> impl Responder {
+async fn set_state(
+    db_connection: web::Data<Mutex<SqliteConnection>>,
+    req_body: String,
+) -> impl Responder {
     let lock = RECIEVER_ADDRS.lock().unwrap();
 
     if let Ok(state) = State::from_str(req_body) {
@@ -78,10 +80,8 @@ async fn set_state(db_connection: web::Data<Mutex<SqliteConnection>>, req_body: 
     }
 }
 
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    
     dotenv().ok();
 
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
@@ -97,24 +97,20 @@ async fn main() -> std::io::Result<()> {
     let db_connection = web::Data::new(Mutex::new(db::establish_connection()));
 
     HttpServer::new(move || {
-
         let cors = Cors::permissive();
 
         App::new()
             .service(web::resource("/live").route(web::get().to(echo_ws)))
             .service(get_current_status)
             .wrap_fn(|req, srv| {
-
                 let mut access_allowed = true;
 
                 if req.method() == Method::POST {
-
                     access_allowed = false;
 
                     let auth_header = req.headers().get(actix_web::http::header::AUTHORIZATION);
 
                     if let Some(token) = auth_header {
-
                         let mut token = token.to_str().unwrap().split(" ");
 
                         token.next();
@@ -126,29 +122,32 @@ async fn main() -> std::io::Result<()> {
                                 access_allowed = true;
                             }
                         }
-    
-
                     }
-
                 }
 
                 if access_allowed {
                     Either::Left(srv.call(req).map(|res| res))
                 } else {
-                    return Either::Right(future::ready(Ok(req.into_response(
-                        HttpResponse::Forbidden()
-                    ))))
+                    return Either::Right(future::ready(Ok(
+                        req.into_response(HttpResponse::Forbidden())
+                    )));
                 }
-
-             })
+            })
             .app_data(db_connection.clone())
             .service(set_state)
-            .service(actix_files::Files::new("/", "./website").show_files_listing().index_file("index.html"))
+            .service(
+                actix_files::Files::new("/", "./website")
+                    .show_files_listing()
+                    .index_file("index.html"),
+            )
             .wrap(cors)
             .wrap(middleware::Logger::default())
     })
     // .bind_openssl(format!("0.0.0.0:{}", env::var("SERVER_PORT").expect("You have to set a server port!")), builder)?
-    .bind(format!("0.0.0.0:{}", env::var("SERVER_PORT").expect("You have to set a server port!")))?
+    .bind(format!(
+        "0.0.0.0:{}",
+        env::var("SERVER_PORT").expect("You have to set a server port!")
+    ))?
     .run()
     .await
 }
