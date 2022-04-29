@@ -30,8 +30,6 @@ pub async fn notify_onesignal(state: State) {
         return;
     }
 
-    log::warn!("hhh");
-
     let onesignal_token = onesignal_token.unwrap();
     let onesignal_app_id = onesignal_app_id.unwrap();
 
@@ -49,8 +47,6 @@ pub async fn notify_onesignal(state: State) {
 
     let client = reqwest::Client::new();
 
-    log::info!("Sending!");
-
     let res = client
         .post("https://onesignal.com/api/v1/notifications")
         // .post("https://httpbin.org/anything")
@@ -62,8 +58,6 @@ pub async fn notify_onesignal(state: State) {
         .json(&body)
         .send()
         .await;
-
-    log::info!("{:?}", res);
 
     if res.is_err() {
         log::error!(
