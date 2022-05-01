@@ -1,21 +1,29 @@
 #![allow(deprecated)]
 
-use std::{sync::RwLock, collections::HashMap};
+use std::collections::HashMap;
 
 use std::fs::{File, self};
 use std::io::Write;
 
 use config::Config;
 
-use clap::{Command, arg};
+use clap::{Command, arg, Arg};
+
+use clap_complete::{generate, Generator, Shell};
+use std::io;
 
 fn cli() -> Command<'static> {
     Command::new("presence-light")
         .about("Watch and change the status of your presence-light application")
-        .subcommand_required(true)
+        // .subcommand_required(true)
         // .arg_required_else_help(true)
         // .allow_external_subcommands(true)
         // .allow_invalid_utf8_for_external_subcommands(true)
+        .arg(
+            Arg::new("generator")
+                .long("generate")
+                .possible_values(Shell::possible_values()),
+        )
         .subcommand(
             Command::new("config")
                 .about("Read and alter the presence-light-cli configuration")
@@ -30,7 +38,10 @@ fn cli() -> Command<'static> {
                     Command::new("set")
                         .subcommand_required(true)
                         .about("Set the configuration")
-                        .subcommand(Command::new("backend").arg(arg!(<URL> "This URL is used to communicate with the backend.")))
+                        .subcommand(Command::new("backend").arg(
+                            Arg::new("url")
+                            .value_hint(clap::ValueHint::Url)
+                        ))
                         .subcommand(Command::new("auth").arg(arg!(<TOKEN> "This auth token is used to send state changes.")))
                         .arg_required_else_help(true)
                 )
@@ -64,6 +75,12 @@ fn main() {
         .unwrap();
 
     let matches = cli().get_matches();
+
+    if let Ok(generator) = matches.value_of_t::<Shell>("generator") {
+        let mut cmd = cli();
+        eprintln!("Generating completion file for {}...", generator);
+        print_completions(generator, &mut cmd);
+    }
 
     match matches.subcommand() {
         Some(("status", _sub_matches)) => {
@@ -144,10 +161,15 @@ fn main() {
                 _ => unreachable!()
             }
         },
-        _ => unreachable!()
+        _ => {}
     }
 
 }
+
+fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
+    generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
+}
+
 
 fn write_to_config(config: HashMap<String, String>, change_key: &str, change_value: &str) {
 

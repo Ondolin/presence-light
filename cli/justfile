@@ -1,0 +1,2 @@
+install-compleat:
+    cargo run -- --generate=zsh > /usr/local/share/zsh/site-functions/_presence-light
