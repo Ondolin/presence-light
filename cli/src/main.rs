@@ -50,6 +50,11 @@ fn cli() -> Command<'static> {
         .subcommand(
             Command::new("status")
                 .about("Get the current status of your presence light")
+                .arg(
+                    Arg::new("backend_url")
+                    .long("backend")
+                    .value_hint(clap::ValueHint::Url)
+                )
         )
         .subcommand(
             Command::new("post").visible_alias("set")
@@ -92,26 +97,30 @@ fn main() {
     }
 
     match matches.subcommand() {
-        Some(("status", _sub_matches)) => {
+        Some(("status", sub_matches)) => {
             let backend_url = settings.get("backend_url");
+            let backend_url_arg = sub_matches.value_of("backend_url");
 
-            if backend_url.is_none() {
-                println!("You have to provide a backend URL to use this command!");
-            } else {
-               
-                let mut backend_url = backend_url.unwrap().clone();
-
-                if backend_url.ends_with("/") {
-                    backend_url.pop();
+            let mut backend_url: String = {
+                if backend_url_arg.is_some() {
+                    backend_url_arg.unwrap().to_string()
+                } else if backend_url.is_some() {
+                    backend_url.unwrap().clone()
+                } else {
+                    println!("You have to provide a backend URL to use this command!"); 
+                    std::process::exit(1);
                 }
-
-                backend_url.push_str("/current");
-
-                let body = reqwest::blocking::get(backend_url.as_str()).expect("Could not fetch from the provided URL!").text().unwrap();
-
-                println!("The current State is: {}", body);
-
+            };
+            
+            if backend_url.ends_with("/") {
+                backend_url.pop();
             }
+
+            backend_url.push_str("/current");
+
+            let body = reqwest::blocking::get(backend_url.clone()).expect("Could not fetch from the provided URL!").text().unwrap();
+
+            println!("The current State is: {}", body);
 
         },
         Some(("post", sub_matches)) => {
