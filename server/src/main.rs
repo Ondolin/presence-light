@@ -129,7 +129,7 @@ async fn main() -> std::io::Result<()> {
                         let token = token.next();
 
                         if let Some(token) = token {
-                            if token == "xw6k2YF4t5yCMky2DYxa7NV" {
+                            if token == env::var("AUTH_TOKEN").expect("You need to provide an auth token!") {
                                 access_allowed = true;
                             }
                         }
