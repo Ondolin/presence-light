@@ -10,6 +10,7 @@ use config::Config;
 use clap::{Command, arg, Arg};
 
 use clap_complete::{generate, Generator, Shell};
+use reqwest::StatusCode;
 use std::io;
 
 fn cli() -> Command<'static> {
@@ -49,6 +50,14 @@ fn cli() -> Command<'static> {
         .subcommand(
             Command::new("status")
                 .about("Get the current status of your presence light")
+        )
+        .subcommand(
+            Command::new("post").visible_alias("set")
+                .about("Change the current presence light status")
+                .arg(
+                    Arg::new("state")
+                    .possible_values(["BUSY", "OK_FOR_INTERRUPTIONS", "FREE", "OFF"])
+                )
         )
 }
 
@@ -104,7 +113,48 @@ fn main() {
 
             }
 
-                
+        },
+        Some(("post", sub_matches)) => {
+            
+            let auth_token = settings.get("auth_token");
+            let backend_url = settings.get("backend_url");
+
+            let state = sub_matches.value_of("state").unwrap().to_string();
+            
+            if let Some(auth_token) = auth_token {
+                if let Some(backend_url) = backend_url {
+
+
+                    let client = reqwest::blocking::Client::new();
+
+                    let res = client.post("http://httpbin.org/post")
+                        .header(reqwest::header::AUTHORIZATION, format!("Bearer {}", auth_token))
+                        .body(state.clone())
+                        .send().unwrap();
+
+                    let status = res.status();
+
+                    if status == StatusCode::UNAUTHORIZED {
+                        println!("Please provide a valid auth code!");
+                        std::process::exit(1);
+                    }
+
+                    if !status.is_success() {
+                        println!("Someting went wrong while trying to post to: \"{}\"", backend_url);
+                        std::process::exit(1);
+                    }
+
+                } else {
+                    println!("You have to provide a backend URL to use this command!");
+                    std::process::exit(1);
+                }
+            } else {
+                println!("You need to provide an auth token to use this command");
+                std::process::exit(1);
+            }
+
+            println!("The presence light status was set to: \"{}\"", state);
+            
         },
         Some(("config", sub_matches)) => {
             match sub_matches.subcommand() {
@@ -137,7 +187,7 @@ fn main() {
                     match sub_matches.subcommand() {
                         Some(("backend", sub_matches)) => {
                          
-                            let url = sub_matches.value_of("URL").unwrap();
+                            let url = sub_matches.value_of("url").unwrap();
 
                             write_to_config(settings, "backend_url", url);
 
